@@ -237,8 +237,8 @@ def stratified_split(df: pd.DataFrame, target_col: str, split_fraction, seed=42)
 def split_data_into_train_and_test(df: pd.DataFrame, split_fraction: float):
     """
     Split by row order:
-      - Train = top fraction of rows with the target column removed
-      - Test  = bottom fraction of rows with the target column kept
+      - Train = top fraction of rows
+      - Test  = bottom fraction of rows
     """
     n = len(df)
     split_idx = int(math.ceil(split_fraction * n))
