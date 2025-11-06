@@ -3,6 +3,7 @@ Compact feature selection + PCA demo for processed liver dataset.
 Usage:
   python3 feature_selection.py --input <input_csv_here> --out <output_directory_here>
 """
+
 import os
 import argparse
 import pandas as pd
@@ -15,9 +16,11 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
+
 def load_df(path):
     df = pd.read_csv(path)
     return df
+
 
 def corr_matrix(df, out_path=None):
     corr = df.corr()
@@ -25,13 +28,17 @@ def corr_matrix(df, out_path=None):
         corr.to_csv(out_path)
     return corr
 
+
 def compute_vif(X):
     # Requires statsmodels installed. X must be a DataFrame of numerical features.
-    vif_df = pd.DataFrame({
-        "feature": X.columns,
-        "vif": [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
-    })
+    vif_df = pd.DataFrame(
+        {
+            "feature": X.columns,
+            "vif": [variance_inflation_factor(X.values, i) for i in range(X.shape[1])],
+        }
+    )
     return vif_df.sort_values("vif", ascending=False)
+
 
 def select_kbest(X, y, k=5):
     skb = SelectKBest(score_func=f_classif, k=k)
@@ -39,7 +46,8 @@ def select_kbest(X, y, k=5):
     mask = skb.get_support()
     return X.columns[mask].tolist(), skb
 
-def l1_logistic_select(X, y, C=1.0, penalty='l1', solver='saga', max_iter=5000):
+
+def l1_logistic_select(X, y, C=1.0, penalty="l1", solver="saga", max_iter=5000):
     # Use L1 logistic for feature selection. Returns non-zero coef features.
     clf = LogisticRegression(C=C, penalty=penalty, solver=solver, max_iter=max_iter)
     clf.fit(X, y)
@@ -48,13 +56,17 @@ def l1_logistic_select(X, y, C=1.0, penalty='l1', solver='saga', max_iter=5000):
     selected = X.columns[mask].tolist()
     return selected, clf
 
+
 def rfe_select(X, y, n_features_to_select=5, estimator=None):
     if estimator is None:
-        estimator = LogisticRegression(C=1.0, penalty='l2', solver='lbfgs', max_iter=2000)
+        estimator = LogisticRegression(
+            C=1.0, penalty="l2", solver="lbfgs", max_iter=2000
+        )
     rfe = RFE(estimator=estimator, n_features_to_select=n_features_to_select, step=1)
     rfe.fit(X, y)
     selected = X.columns[rfe.support_].tolist()
     return selected, rfe
+
 
 def pca_summary(X, n_components=5):
     scaler = StandardScaler()
@@ -62,6 +74,7 @@ def pca_summary(X, n_components=5):
     pca = PCA(n_components=n_components)
     pca.fit(Xs)
     return pca, scaler
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -118,17 +131,26 @@ def main():
     print("PCA explained variance ratios:", explained)
 
     # Save selected feature lists
-    pd.Series(kbest_features).to_csv(os.path.join(args.out, "selectkbest.txt"), index=False, header=False)
-    pd.Series(l1_feats).to_csv(os.path.join(args.out, "l1_selected.txt"), index=False, header=False)
+    pd.Series(kbest_features).to_csv(
+        os.path.join(args.out, "selectkbest.txt"), index=False, header=False
+    )
+    pd.Series(l1_feats).to_csv(
+        os.path.join(args.out, "l1_selected.txt"), index=False, header=False
+    )
     try:
-        pd.Series(rfe_feats).to_csv(os.path.join(args.out, "rfe_selected.txt"), index=False, header=False)
+        pd.Series(rfe_feats).to_csv(
+            os.path.join(args.out, "rfe_selected.txt"), index=False, header=False
+        )
     except:
         pass
 
     # Optionally save reduced datasets (example: keep L1-selected features)
     if len(l1_feats) > 0:
-        df[l1_feats + [target]].to_csv(os.path.join(args.out, "data_l1_selected.csv"), index=False)
+        df[l1_feats + [target]].to_csv(
+            os.path.join(args.out, "data_l1_selected.csv"), index=False
+        )
         print("Saved dataset with L1-selected features.")
+
 
 if __name__ == "__main__":
     main()
