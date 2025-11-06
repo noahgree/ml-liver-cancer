@@ -234,7 +234,7 @@ def stratified_split(df: pd.DataFrame, target_col: str, split_fraction, seed=42)
     test_df = df.loc[test_idx].sort_index()
     return train_df, test_df
 
-def split_data_into_train_and_test(df: pd.DataFrame, target_col: str, split_fraction: float):
+def split_data_into_train_and_test(df: pd.DataFrame, split_fraction: float):
     """
     Split by row order:
       - Train = top fraction of rows with the target column removed
@@ -242,7 +242,7 @@ def split_data_into_train_and_test(df: pd.DataFrame, target_col: str, split_frac
     """
     n = len(df)
     split_idx = int(math.ceil(split_fraction * n))
-    train_df = df.iloc[:split_idx].drop(columns=[target_col], errors="ignore")
+    train_df = df.iloc[:split_idx]
     test_df = df.iloc[split_idx:]
     return train_df, test_df
 
@@ -282,7 +282,7 @@ def main():
 
     # 2) and 3) Split outputs
     if args.mode == "requested":
-        train_df, test_df = split_data_into_train_and_test(processed, "liver_cancer", args.fraction)
+        train_df, test_df = split_data_into_train_and_test(processed, args.fraction)
         train_path = os.path.join(args.out, "train.csv")
         test_path = os.path.join(args.out, "test.csv")
     else:
