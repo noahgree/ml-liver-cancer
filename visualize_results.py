@@ -128,7 +128,7 @@ def plot_confusion_matrix(y_true, y_pred, outdir):
     cm = confusion_matrix(y_true, y_pred)
     # Manual heatmap using imshow (no seaborn)
     plt.figure()
-    im = plt.imshow(cm, cmap="Greys")
+    im = plt.imshow(cm)
     plt.colorbar(im, fraction=0.046, pad=0.04)
     plt.xticks([0, 1], ["Pred 0", "Pred 1"])
     plt.yticks([0, 1], ["Actual 0", "Actual 1"])
