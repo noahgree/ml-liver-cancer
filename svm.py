@@ -1,10 +1,12 @@
 """
 Support Vector Machine model for liver cancer prediction.
 By: Benjamin Gunasekera
+Referenced logistic_regression.py
 """
 from logistic_regression import load_data, prepare_features_and_target, save_model
 from sklearn.svm import SVC
 import argparse
+from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import (
     recall_score,
     precision_score,
@@ -28,12 +30,12 @@ def svm_train_model(X_train, y_train, kernel: str = "rbf", C: int = 1,
     Returns:
         Trained SVC model
     """
-    model = SVC(C=C, kernel=kernel, max_iter=max_iter, random_state=random_state)
+    param_grid = {'C': [0.1, 1, 10, 100, 1000], 
+			    'gamma': [1, 0.1, 0.01, 0.001, 0.0001]}
+    model = GridSearchCV(SVC(kernel='rbf', random_state=random_state), param_grid, refit=True, verbose=1)
     model.fit(X_train, y_train)
     return model
 
-def svm_optimize_model():
-    raise NotImplementedError
 
 def svm_evaluate_model(model, X_test, y_test):
     y_pred = model.predict(X_test)
@@ -198,6 +200,8 @@ def main():
         max_iter=args.max_iter,
         random_state=args.random_state
     )
+    print("\n")
+    print()
 
     # Evaluate model
     print("\n" + "="*70)
