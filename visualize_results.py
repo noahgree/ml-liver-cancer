@@ -110,7 +110,8 @@ def plot_roc(y_true, y_proba, outdir):
 
 def plot_pr(y_true, y_proba, outdir):
     precision, recall, _ = precision_recall_curve(y_true, y_proba)
-    ap = np.trapz(precision, recall)
+    # np.trapz is deprecated in newer NumPy; use trapezoid instead
+    ap = np.trapezoid(precision, recall)
 
     plt.figure()
     plt.plot(recall, precision, linewidth=2, color=COLORS["accent"], label=f"PR AUC ≈ {ap:.3f}")
@@ -168,8 +169,17 @@ def plot_threshold_sweep(y_true, y_proba, selected_threshold, outdir):
 
 
 def plot_coefficients(model, feature_names, outdir, top_k=12):
-    # Handle pipelines or calibrated models
+    """
+    Plot top feature contributions for linear or tree-based models.
+
+    - For linear models, use signed coefficients (log-odds weights).
+    - For tree-based models (e.g. RandomForest), fall back to feature_importances_.
+    """
     coef = None
+    title = "Top Feature Contributions (|coef|)"
+    xlabel = "Coefficient / Importance"
+
+    # 1) Try to get linear coefficients
     clf = model
     if hasattr(model, "coef_"):
         coef = model.coef_[0]
@@ -185,8 +195,17 @@ def plot_coefficients(model, feature_names, outdir, top_k=12):
             coef = last.coef_[0]
             clf = last
 
+    # 2) If no coefficients, fall back to tree feature importances
+    if coef is None and hasattr(model, "feature_importances_"):
+        coef = model.feature_importances_
+        title = "Top Feature Importances"
+        xlabel = "Feature importance"
+
     if coef is None:
-        print("[warn] Could not extract coefficients from the provided model. Skipping coefficient plot.")
+        print(
+            "[warn] Could not extract coefficients or feature_importances_ from "
+            "the provided model. Skipping feature contribution plot."
+        )
         return
 
     # If feature names not given (e.g., pipeline), try generic names
@@ -197,6 +216,7 @@ def plot_coefficients(model, feature_names, outdir, top_k=12):
     sel_feats = np.array(feature_names)[idx]
     sel_vals = coef[idx]
 
+    # Color positive vs negative for linear; for importances everything is ≥0 so this is all "safe"
     colors = [COLORS["safe"] if v >= 0 else COLORS["danger"] for v in sel_vals]
 
     plt.figure(figsize=(7, 6))
@@ -204,8 +224,8 @@ def plot_coefficients(model, feature_names, outdir, top_k=12):
     plt.barh(y_pos, sel_vals, color=colors)
     plt.yticks(y_pos, sel_feats)
     plt.gca().invert_yaxis()
-    plt.xlabel("Coefficient (log-odds weight)")
-    plt.title("Top Feature Contributions (|coef|)")
+    plt.xlabel(xlabel)
+    plt.title(title)
     plt.tight_layout()
     ensure_dir(outdir)
     plt.savefig(os.path.join(outdir, "coefficients.png"))
