@@ -2,16 +2,28 @@
 """
 visualize_results.py — Journal-style plots for a trained logistic regression model.
 
-Usage:
-  python visualize_results.py \
-      --model model.pkl \
-      --test preprocessed/test.csv \
-      --target liver_cancer \
-      --threshold 0.44
+Usage (LogReg):
+    python visualize_results.py \
+        --model models/logreg.pkl \
+        --test preprocessed/test.csv \
+        --target liver_cancer \
+        --threshold <threshold>
+Usage (RandForest):
+    python visualize_results.py \
+        --model models/randforest.pkl \
+        --test preprocessed/test.csv \
+        --target liver_cancer \
+        --threshold <threshold>
+Usage (SVM):
+    python visualize_results.py \
+        --model models/svm.pkl \
+        --test preprocessed/test.csv \
+        --target liver_cancer \
+        --threshold <threshold>
 
 Notes:
 - Uses only matplotlib (no seaborn).
-- Saves figures to ./figures
+- Saves figures to ./<model_out_dir>
 - Will attempt to import helper functions from logistic_regression.py if available,
   but can also work without it.
 """
@@ -252,8 +264,14 @@ def main():
     ap.add_argument("--test", required=True, help="Path to test CSV (e.g., preprocessed/test.csv)")
     ap.add_argument("--target", default="liver_cancer", help="Target column name (default: liver_cancer)")
     ap.add_argument("--threshold", type=float, default=0.5, help="Classification threshold for confusion matrix (default: 0.5)")
-    ap.add_argument("--outdir", default="figures", help="Directory to save figures (default: figures)")
+    # removed: explicit outdir argument, since we now derive it from the model path
+    # ap.add_argument("--outdir", default="figures", help="Directory to save figures (default: figures)")
     args = ap.parse_args()
+
+    # Derive output directory from model filename: <model_basename>_figures
+    model_dir = os.path.dirname(args.model)
+    model_name = os.path.splitext(os.path.basename(args.model))[0]  # strip .pkl
+    outdir = os.path.join(model_dir if model_dir else ".", f"{model_name}_figures")
 
     # Load model
     model = load_model(args.model)
@@ -289,15 +307,15 @@ def main():
         else:
             print(f"  {k}: {v:.4f}" if isinstance(v, (float, int)) else f"  {k}: {v}")
 
-    # Plots
-    plot_roc(y_test, y_proba, args.outdir)
-    plot_pr(y_test, y_proba, args.outdir)
-    plot_confusion_matrix(y_test, y_pred, args.outdir)
-    plot_threshold_sweep(y_test, y_proba, args.threshold, args.outdir)
+    # Plots (use derived outdir)
+    plot_roc(y_test, y_proba, outdir)
+    plot_pr(y_test, y_proba, outdir)
+    plot_confusion_matrix(y_test, y_pred, outdir)
+    plot_threshold_sweep(y_test, y_proba, args.threshold, outdir)
 
     # Try to extract feature names if DataFrame
     feat_names = list(X_test.columns) if hasattr(X_test, "columns") else None
-    plot_coefficients(model, feat_names, args.outdir)
+    plot_coefficients(model, feat_names, outdir)
 
 
 if __name__ == "__main__":
