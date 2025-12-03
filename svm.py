@@ -9,21 +9,33 @@ Usage:
 """
 from logistic_regression import load_data, prepare_features_and_target
 import os
+import numpy as np
 import pickle
 from sklearn.svm import SVC
 import argparse
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import (
+    roc_auc_score,
+    brier_score_loss,
     recall_score,
     precision_score,
     confusion_matrix,
 )
 
+# Project Goals (Expected Results)
+# Ranges are specified as (min, max) tuples
+PROJECT_GOALS = {
+    "AUROC": (0.80, 0.99),      # Range: 0.80–0.99
+    "Recall": (0.80, 0.90),     # Range: 0.80–0.90
+    "Precision": (0.30, 0.50),  # Range: 0.30–0.50
+    "Brier Score": (0.00, 0.20)         # Threshold: < 0.20
+}
+
 def svm_train_model(X_train, y_train, kernel: str = "rbf", C: int = 1,
                 max_iter: int = 1000, random_state: int = None):
     """
-    Train Logistic Regression model.
-
+    Train SVM model.
+    
     Args:
         X_train: Training features
         y_train: Training labels
@@ -38,27 +50,73 @@ def svm_train_model(X_train, y_train, kernel: str = "rbf", C: int = 1,
     """
     param_grid = {'C': [0.1, 1, 10, 100, 1000],
 			    'gamma': [1, 0.1, 0.01, 0.001, 0.0001]}
-    model = GridSearchCV(SVC(kernel='rbf', random_state=random_state), param_grid, refit=True, verbose=1)
+    model = GridSearchCV(SVC(kernel=kernel, probability=True, random_state=random_state, max_iter=max_iter, class_weight='balanced'), param_grid, refit=True, verbose=1, n_jobs=-1)
     model.fit(X_train, y_train)
     return model
 
+def find_optimal_threshold(
+    y_true,
+    y_pred_proba,
+    precision_range,
+    recall_range,
+):
+    """
+    Grid-search classification threshold.
 
-def svm_evaluate_model(model, X_test, y_test):
-    y_pred = model.predict(X_test)
+    Design goal here: **maximize recall (sensitivity)** subject to having
+    *at least* a minimal usable precision. In other words:
+      - primary objective: higher recall
+      - secondary: among thresholds with similar recall, prefer higher precision
+    """
+    candidate_thresholds = np.linspace(0.1, 0.9, 81)
+
+    best_threshold = 0.5
+    best_recall = -1.0
+    best_precision = -1.0
+    best_metrics = None
+
+    precision_min, _ = precision_range
+
+    for threshold in candidate_thresholds:
+        y_pred = (y_pred_proba >= threshold).astype(int)
+        if y_pred.sum() == 0:
+            continue
+
+        recall = recall_score(y_true, y_pred, zero_division=0)
+        precision = precision_score(y_true, y_pred, zero_division=0)
+
+        # Filter out thresholds with unusably low precision
+        if precision < precision_min:
+            continue
+
+        # Primary: maximize recall; Secondary: for the same recall, prefer higher precision
+        if (recall > best_recall) or (np.isclose(recall, best_recall) and precision > best_precision):
+            best_recall = recall
+            best_precision = precision
+            best_threshold = threshold
+            best_metrics = (recall, precision)
+
+    return best_threshold, best_metrics
+
+def svm_evaluate_model(model, X_test, y_test, threshold=0.5):
+    y_pred_proba = model.predict_proba(X_test)[:, 1]
+    y_pred = (y_pred_proba >= threshold).astype(int)
 
     # Compute metrics
     metrics = {
+        "AUROC": roc_auc_score(y_test, y_pred_proba),
         "Recall": recall_score(y_test, y_pred),
         "Precision": precision_score(y_test, y_pred),
+        "Brier Score": brier_score_loss(y_test, y_pred_proba),
         "Accuracy": (y_pred == y_test).mean(),
         "Confusion Matrix": confusion_matrix(y_test, y_pred),
+        "Threshold": threshold,
     }
 
-    return metrics, y_pred
+    return metrics, y_pred, y_pred_proba
 
-def svm_print_results(metrics, y_test, y_pred):
+def svm_print_results(metrics, y_test, y_pred, y_pred_proba):
     """Print evaluation results and compare against project goals."""
-    """ Modified from logistic_regression.py print results (didn't want to update so we now have some ugly code)"""
     print("\n" + "="*70)
     print("MODEL EVALUATION RESULTS")
     print("="*70)
@@ -67,18 +125,19 @@ def svm_print_results(metrics, y_test, y_pred):
     print(f"Positive Cases: {y_test.sum()}")
     print(f"Negative Cases: {(y_test == 0).sum()}")
 
+    threshold_val = metrics.get("Threshold", 0.5)
+    if abs(threshold_val - 0.5) < 0.001:
+        print(f"\nClassification Threshold: {threshold_val:.4f} (default)")
+    else:
+        print(
+            f"\nClassification Threshold: {threshold_val:.4f} "
+            "(optimized, default: 0.5)"
+        )
+    
     print("\n" + "-"*70)
     print("METRICS")
     print("-"*70)
-
-
-    # Project Goals (Expected Results)
-    # Ranges are specified as (min, max) tuples
-    PROJECT_GOALS = {
-        "Recall": (0.80, 0.90),     # Range: 0.80–0.90
-        "Precision": (0.30, 0.50),  # Range: 0.30–0.50
-    }
-
+    
     # Print each metric with goal comparison
     for metric_name, goal_value in PROJECT_GOALS.items():
         value = metrics[metric_name]
@@ -116,12 +175,16 @@ def svm_print_results(metrics, y_test, y_pred):
     print("-"*70)
 
     # Check if all goals are met
+    auroc_min, auroc_max = PROJECT_GOALS["AUROC"]
     recall_min, recall_max = PROJECT_GOALS["Recall"]
     precision_min, precision_max = PROJECT_GOALS["Precision"]
-
+    brier_score_min, brier_score_max = PROJECT_GOALS["Brier Score"]
+    
     all_goals_met = all([
+        auroc_min <= metrics["AUROC"] <= auroc_max,
         recall_min <= metrics["Recall"] <= recall_max,
         precision_min <= metrics["Precision"] <= precision_max,
+        brier_score_min <= metrics["Brier Score"] <= brier_score_max,
     ])
 
     if all_goals_met:
@@ -142,7 +205,7 @@ def save_model(model, filepath: str = "models/svm.pkl"):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Train and evaluate Logistic Regression model for liver cancer identification."
+        description="Train and evaluate SVM model for liver cancer identification."
     )
     parser.add_argument(
         "--train",
@@ -153,6 +216,11 @@ def main():
         "--test",
         default="preprocessed/test.csv",
         help="Path to test CSV file (default: preprocessed/test.csv)"
+    )
+    parser.add_argument(
+        "--model-out",
+        default=None,
+        help="Path to save trained model (optional, as .pkl file)"
     )
     parser.add_argument(
         "--kernel",
@@ -177,6 +245,12 @@ def main():
         type=int,
         default=42,
         help="Random seed for reproducibility (default: 42)"
+    )
+    parser.add_argument(
+        "--optimize-threshold",
+        action="store_true",
+        default=True,
+        help="Optimize classification threshold using grid search (default: True)"
     )
 
     args = parser.parse_args()
@@ -210,18 +284,41 @@ def main():
         random_state=args.random_state
     )
     print("\n")
-    print()
+    
+    optimal_threshold = 0.5
+    if args.optimize_threshold:
+        print("\n" + "=" * 70)
+        print("Finding optimal classification threshold (SVM)...")
+
+        y_train_proba = model.predict_proba(X_train)[:, 1]
+
+        precision_min, precision_max = PROJECT_GOALS["Precision"]
+        recall_min, recall_max = PROJECT_GOALS["Recall"]
+
+        optimal_threshold, best_metrics = find_optimal_threshold(
+            y_train.values,
+            y_train_proba,
+            precision_range=(precision_min, precision_max),
+            recall_range=(recall_min, recall_max),
+        )
+
+        print(f"  - Optimal threshold: {optimal_threshold:.4f} (default: 0.5)")
+        if best_metrics is not None:
+            print(f"  - Expected recall: {best_metrics[0]:.4f}")
+            print(f"  - Expected precision: {best_metrics[1]:.4f}")
 
     # Evaluate model
     print("\n" + "="*70)
     print("Evaluating model on test set...")
-    metrics, y_pred = svm_evaluate_model(model, X_test, y_test)
-
+    metrics, y_pred, y_pred_proba = svm_evaluate_model(model, X_test, y_test, threshold=optimal_threshold)
+    
     # Print results
-    svm_print_results(metrics, y_test, y_pred)
-
-    save_model(model, "models/svm.pkl")
-
+    svm_print_results(metrics, y_test, y_pred, y_pred_proba)
+    
+    # Save model if requested
+    if args.model_out:
+        save_model(model, args.model_out)
+    
     return model, metrics
 
 
