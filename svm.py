@@ -9,6 +9,7 @@ Usage:
 """
 from logistic_regression import load_data, prepare_features_and_target
 import os
+import numpy as np
 import pickle
 from sklearn.svm import SVC
 import argparse
@@ -56,24 +57,17 @@ def svm_train_model(X_train, y_train, kernel: str = "rbf", C: int = 1,
 def find_optimal_threshold(
     y_true,
     y_pred_proba,
-    precision_range=(0.30, 0.50),
-    recall_range=(0.80, 0.90),
+    precision_range,
+    recall_range,
 ):
     """
     Grid-search classification threshold.
 
-    Design goal: MAXIMIZE RECALL (minimize false negatives) for medical screening.
-    Precision must be above minimum, but exceeding precision/recall upper bounds
-    is acceptable if it means catching more cancer cases.
-    
-    Priority order:
-    1. Maximize recall (catch all cancer cases)
-    2. Keep precision above minimum threshold
-    3. If multiple thresholds have similar recall, prefer higher precision
+    Design goal here: **maximize recall (sensitivity)** subject to having
+    *at least* a minimal usable precision. In other words:
+      - primary objective: higher recall
+      - secondary: among thresholds with similar recall, prefer higher precision
     """
-    import numpy as np
-    from sklearn.metrics import recall_score, precision_score
-
     candidate_thresholds = np.linspace(0.1, 0.9, 81)
 
     best_threshold = 0.5
@@ -81,8 +75,7 @@ def find_optimal_threshold(
     best_precision = -1.0
     best_metrics = None
 
-    precision_min, _ = precision_range  # Only use minimum, ignore maximum
-    recall_min, _ = recall_range       # Only use minimum, ignore maximum
+    precision_min, _ = precision_range
 
     for threshold in candidate_thresholds:
         y_pred = (y_pred_proba >= threshold).astype(int)
@@ -92,16 +85,11 @@ def find_optimal_threshold(
         recall = recall_score(y_true, y_pred, zero_division=0)
         precision = precision_score(y_true, y_pred, zero_division=0)
 
-        # Must meet minimum precision (avoid too many false alarms)
+        # Filter out thresholds with unusably low precision
         if precision < precision_min:
             continue
 
-        # Must meet minimum recall (catch at least 80% of cases)
-        if recall < recall_min:
-            continue
-
-        # Primary: maximize recall (minimize false negatives)
-        # Secondary: for same recall, prefer higher precision
+        # Primary: maximize recall; Secondary: for the same recall, prefer higher precision
         if (recall > best_recall) or (np.isclose(recall, best_recall) and precision > best_precision):
             best_recall = recall
             best_precision = precision
@@ -228,6 +216,11 @@ def main():
         "--test",
         default="preprocessed/test.csv",
         help="Path to test CSV file (default: preprocessed/test.csv)"
+    )
+    parser.add_argument(
+        "--model-out",
+        default=None,
+        help="Path to save trained model (optional, as .pkl file)"
     )
     parser.add_argument(
         "--kernel",
