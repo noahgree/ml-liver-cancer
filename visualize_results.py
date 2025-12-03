@@ -23,7 +23,6 @@ Usage (SVM):
 
 Notes:
 - Uses only matplotlib (no seaborn).
-- Saves figures to ./<model_out_dir>
 - Will attempt to import helper functions from logistic_regression.py if available,
   but can also work without it.
 """
