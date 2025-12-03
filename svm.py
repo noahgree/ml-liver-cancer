@@ -2,8 +2,14 @@
 Support Vector Machine model for liver cancer prediction.
 By: Benjamin Gunasekera
 Referenced logistic_regression.py
+
+Usage:
+  python3 svm.py --train preprocessed/train.csv --test preprocessed/test.csv
+  python3 svm.py --train <train_csv> --test <test_csv>
 """
-from logistic_regression import load_data, prepare_features_and_target, save_model
+from logistic_regression import load_data, prepare_features_and_target
+import os
+import pickle
 from sklearn.svm import SVC
 import argparse
 from sklearn.model_selection import GridSearchCV
@@ -37,11 +43,11 @@ def svm_train_model(X_train, y_train, kernel: str = "rbf", C: int = 1,
         gamma: Kernel coefficient ('scale', 'auto', or float)
         max_iter: Maximum iterations
         random_state: Random seed for reproducibility
-        
+
     Returns:
         Trained SVC model
     """
-    param_grid = {'C': [0.1, 1, 10, 100, 1000], 
+    param_grid = {'C': [0.1, 1, 10, 100, 1000],
 			    'gamma': [1, 0.1, 0.01, 0.001, 0.0001]}
     model = GridSearchCV(SVC(kernel=kernel, probability=True, random_state=random_state, max_iter=max_iter, class_weight='balanced'), param_grid, refit=True, verbose=1, n_jobs=-1)
     model.fit(X_train, y_train)
@@ -126,7 +132,7 @@ def svm_print_results(metrics, y_test, y_pred, y_pred_proba):
     print("\n" + "="*70)
     print("MODEL EVALUATION RESULTS")
     print("="*70)
-    
+
     print(f"\nTest Set Size: {len(y_test)}")
     print(f"Positive Cases: {y_test.sum()}")
     print(f"Negative Cases: {(y_test == 0).sum()}")
@@ -158,9 +164,9 @@ def svm_print_results(metrics, y_test, y_pred, y_pred_proba):
         else:
             status = f"within range ({min_val:.2f}-{max_val:.2f})"
         print(f"{metric_name:15s}: {value:.4f} ({status}) {comparison}")
-    
+
     print(f"{'Accuracy':15s}: {metrics['Accuracy']:.4f}")
-    
+
     # Confusion Matrix
     print("\n" + "-"*70)
     print("CONFUSION MATRIX")
@@ -170,16 +176,16 @@ def svm_print_results(metrics, y_test, y_pred, y_pred_proba):
     print(f"              Negative  Positive")
     print(f"Actual Negative   {cm[0,0]:4d}      {cm[0,1]:4d}")
     print(f"       Positive   {cm[1,0]:4d}      {cm[1,1]:4d}")
-    
+
     # Calculate derived metrics from confusion matrix
     tn, fp, fn, tp = cm.ravel()
     specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
     print(f"\nSpecificity (True Negative Rate): {specificity:.4f}")
-    
+
     print("\n" + "-"*70)
     print("GOAL SUMMARY")
     print("-"*70)
-    
+
     # Check if all goals are met
     auroc_min, auroc_max = PROJECT_GOALS["AUROC"]
     recall_min, recall_max = PROJECT_GOALS["Recall"]
@@ -192,13 +198,21 @@ def svm_print_results(metrics, y_test, y_pred, y_pred_proba):
         precision_min <= metrics["Precision"] <= precision_max,
         brier_score_min <= metrics["Brier Score"] <= brier_score_max,
     ])
-    
+
     if all_goals_met:
         print("✓ All project goals met!")
     else:
         print("✗ Some project goals not met. See metrics above.")
-    
+
     print("="*70 + "\n")
+
+
+def save_model(model, filepath: str = "models/svm.pkl"):
+    """Save trained model to file as a .pkl file."""
+    os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else ".", exist_ok=True)
+    with open(filepath, 'wb') as f:
+        pickle.dump(model, f)
+    print(f"Model saved to: {filepath}")
 
 
 def main():
@@ -214,11 +228,6 @@ def main():
         "--test",
         default="preprocessed/test.csv",
         help="Path to test CSV file (default: preprocessed/test.csv)"
-    )
-    parser.add_argument(
-        "--model-out",
-        default=None,
-        help="Path to save trained model (optional, as .pkl file)"
     )
     parser.add_argument(
         "--kernel",
@@ -252,26 +261,26 @@ def main():
     )
 
     args = parser.parse_args()
-    
+
     # Load data
     print("Loading training data...")
     train_df = load_data(args.train)
     print(f"  - Loaded {len(train_df)} training samples")
-    
+
     print("Loading test data...")
     test_df = load_data(args.test)
     print(f"  - Loaded {len(test_df)} test samples")
-    
+
     # Prepare features and targets
     TARGET_COL = "liver_cancer"
     print("\nPreparing features and targets...")
     X_train, y_train = prepare_features_and_target(train_df, TARGET_COL)
     X_test, y_test = prepare_features_and_target(test_df, TARGET_COL)
-    
+
     print(f"  - Training features shape: {X_train.shape}")
     print(f"  - Test features shape: {X_test.shape}")
     print(f"  - Feature columns: {list(X_train.columns)}")
-    
+
     # Train model
     print("\n" + "="*70)
     model = svm_train_model(

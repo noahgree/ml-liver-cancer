@@ -10,7 +10,7 @@ highlight which medical features contribute most to predictions.
 
 Usage:
   python3 random_forest.py --train preprocessed/train.csv --test preprocessed/test.csv
-  python3 random_forest.py --train <train_csv> --test <test_csv> [--model-out <model_path>]
+  python3 random_forest.py --train <train_csv> --test <test_csv>
 """
 
 import argparse
@@ -255,10 +255,10 @@ def print_results(metrics: Dict[str, Any], y_test: pd.Series) -> None:
     print("=" * 70 + "\n")
 
 
-def save_model(model: RandomForestClassifier, filepath: str) -> None:
-    """Save trained model to file."""
+def save_model(model, filepath: str = "models/randforest.pkl"):
+    """Save trained model to file as a .pkl file."""
     os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else ".", exist_ok=True)
-    with open(filepath, "wb") as f:
+    with open(filepath, 'wb') as f:
         pickle.dump(model, f)
     print(f"Model saved to: {filepath}")
 
@@ -304,11 +304,6 @@ def main() -> None:
         "--test",
         default="preprocessed/test.csv",
         help="Path to test CSV file (default: preprocessed/test.csv)",
-    )
-    parser.add_argument(
-        "--model-out",
-        default=None,
-        help="Path to save trained model (optional, as .pkl file)",
     )
 
     # Random Forest hyperparameters
@@ -434,11 +429,8 @@ def main() -> None:
     # Feature importance ranking to show key medical factors
     print_feature_importances(model, list(X_train.columns))
 
-    if args.model_out:
-        save_model(model, args.model_out)
+    save_model(model, "models/randforest.pkl")
 
 
 if __name__ == "__main__":
     main()
-
-
