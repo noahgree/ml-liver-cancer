@@ -24,13 +24,14 @@ Repository for the Fall 2025 CS 4641 group project for group 129.
 ### Directories
 
 /models/: Trained model artifacts and result figures
-  /logreg.pkl: Serialized Logistic Regression model
-  /randforest.pkl: Serialized Random Forest model
-  /svm.pkl: Serialized Support Vector Machine model
-  /logreg_figures/: Directory containing Logistic Regression visualization outputs
-  /randforest_figures/: Directory containing Random Forest visualization outputs
+    /logreg.pkl: Serialized Logistic Regression model
+    /randforest.pkl: Serialized Random Forest model
+    /svm.pkl: Serialized Support Vector Machine model
+    /logreg_figures/: Directory containing Logistic Regression visualization outputs
+    /randforest_figures/: Directory containing Random Forest visualization outputs
+    /svm_figures/: Directory containing SVM visualization outputs
 
 /preprocessed/: Processed training and testing datasets
-  /full_processed.csv: Complete processed dataset with all rows and encoded/normalized columns
-  /train.csv: Training subset (default 80% of data) without labels for model training
-  /test.csv: Testing subset (default 20% of data) with labels for model evaluation
+    /full_processed.csv: Complete processed dataset with all rows and encoded/normalized columns
+    /train.csv: Training subset (default 80% of data) without labels for model training
+    /test.csv: Testing subset (default 20% of data) with labels for model evaluation
