@@ -179,44 +179,78 @@ def plot_threshold_sweep(y_true, y_proba, selected_threshold, outdir):
     plt.show()
 
 
-def plot_coefficients(model, feature_names, outdir, top_k=12):
+def plot_coefficients(model, feature_names, outdir, top_k=12, X_test=None, y_test=None):
     """
-    Plot top feature contributions for linear or tree-based models.
+    Plot top feature contributions.
 
     - For linear models, use signed coefficients (log-odds weights).
     - For tree-based models (e.g. RandomForest), fall back to feature_importances_.
+    - For SVM with non-linear kernel: use permutation importance.
     """
+    from sklearn.inspection import permutation_importance
+    
     coef = None
     title = "Top Feature Contributions (|coef|)"
     xlabel = "Coefficient / Importance"
 
+    # Handle GridSearchCV wrapper
+    if hasattr(model, "best_estimator_"):
+        best_model = model.best_estimator_
+    else:
+        best_model = model
+
     # 1) Try to get linear coefficients
-    clf = model
-    if hasattr(model, "coef_"):
-        coef = model.coef_[0]
-    elif hasattr(model, "base_estimator_"):  # CalibratedClassifierCV
-        base = getattr(model, "base_estimator_")
+    clf = best_model
+    if hasattr(best_model, "coef_"):
+        coef = best_model.coef_[0]
+    elif hasattr(best_model, "base_estimator_"):  # CalibratedClassifierCV
+        base = getattr(best_model, "base_estimator_")
         if hasattr(base, "coef_"):
             coef = base.coef_[0]
             clf = base
-    elif hasattr(model, "named_steps"):
+    elif hasattr(best_model, "named_steps"):
         # Try to pull from pipeline last step if it's LR
-        last = list(model.named_steps.values())[-1]
+        last = list(best_model.named_steps.values())[-1]
         if hasattr(last, "coef_"):
             coef = last.coef_[0]
             clf = last
+    # Check for SVM with linear kernel
+    elif hasattr(best_model, "kernel") and best_model.kernel == "linear" and hasattr(best_model, "coef_"):
+        coef = best_model.coef_[0]
 
     # 2) If no coefficients, fall back to tree feature importances
-    if coef is None and hasattr(model, "feature_importances_"):
-        coef = model.feature_importances_
+    if coef is None and hasattr(best_model, "feature_importances_"):
+        coef = best_model.feature_importances_
         title = "Top Feature Importances"
         xlabel = "Feature importance"
 
-    if coef is None:
-        print(
-            "[warn] Could not extract coefficients or feature_importances_ from "
-            "the provided model. Skipping feature contribution plot."
+    # 3) For non-linear SVM or other models without coefficients, use permutation importance
+    if coef is None and X_test is not None and y_test is not None:
+        print("[Info] Using permutation importance for non-linear model...")
+        perm_importance = permutation_importance(
+            best_model, X_test, y_test, 
+            n_repeats=10, 
+            random_state=42,
+            scoring='roc_auc',  # or 'recall' if you prefer
+            n_jobs=-1
         )
+        coef = perm_importance.importances_mean
+        title = "Top Feature Importances (Permutation)"
+        xlabel = "Permutation Importance"
+
+    if coef is None:
+        # Check if it's SVM with non-linear kernel
+        if hasattr(best_model, "kernel") and best_model.kernel != "linear":
+            print(
+                "[warn] SVM with {} kernel does not have interpretable coefficients. "
+                "Permutation importance requires X_test and y_test. Skipping feature contribution plot."
+                .format(best_model.kernel)
+            )
+        else:
+            print(
+                "[warn] Could not extract coefficients or feature_importances_ from "
+                "the provided model. Skipping feature contribution plot."
+            )
         return
 
     # If feature names not given (e.g., pipeline), try generic names
@@ -241,7 +275,7 @@ def plot_coefficients(model, feature_names, outdir, top_k=12):
     ensure_dir(outdir)
     plt.savefig(os.path.join(outdir, "coefficients.png"))
     plt.show()
-
+    
 
 def evaluate_basic(y_true, y_proba, threshold):
     y_pred = (y_proba >= threshold).astype(int)
@@ -314,7 +348,7 @@ def main():
 
     # Try to extract feature names if DataFrame
     feat_names = list(X_test.columns) if hasattr(X_test, "columns") else None
-    plot_coefficients(model, feat_names, outdir)
+    plot_coefficients(model, feat_names, outdir, top_k=12, X_test=X_test, y_test=y_test)
 
 
 if __name__ == "__main__":
