@@ -34,9 +34,3 @@ Repository for the Fall 2025 CS 4641 group project for group 129.
   /full_processed.csv: Complete processed dataset with all rows and encoded/normalized columns
   /train.csv: Training subset (default 80% of data) without labels for model training
   /test.csv: Testing subset (default 20% of data) with labels for model evaluation
-
-/__pycache__/: Python bytecode cache directory (auto-generated)
-
-/.git/: Git version control metadata
-
-/.venv/: Python virtual environment (local dependencies)
