@@ -1,5 +1,5 @@
-# ml-project-group-129
-Repository for the Fall 2025 CS 4641 group project for group 129.
+# ML-Based Liver Cancer Predictor
+Predicting liver cancer using machine learning (trained on anonymous and publicly available data).
 
 ## Directory and File Structure
 
